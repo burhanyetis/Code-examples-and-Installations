@@ -1,0 +1,154 @@
+Steps to install hive on a node:
+
+1)Install Java
+$ java –version
+Supposed to show up this:
+java version “<JAVA_VERSION>” 
+Java(TM) SE Runtime Environment (build 1.7.0_71-b13) 
+Java HotSpot(TM) Client VM (build 25.0-b02, mixed mode)
+Otherwise;
+sudo yum install wget
+Install : jdk-8u131-linux-x64.tar.gz
+jdk-7u71-linux-x64.gz
+
+$ tar zxf jdk-8u131-linux-x64.tar.gz
+$ ls
+$ su
+password:
+$ mv  jdk-8u131-linux-x64 /usr/local/
+$ sudo vi  ~/.bashrc 
+Add these lines:
+* export JAVA_HOME=/usr/local/jdk1.7.0_71
+* export PATH=$PATH:$JAVA_HOME/bin
+$ source ~/.bashrc
+
+2)Install Hadoop
+$ hadoop version
+$ su
+password:
+$ cd /usr/local
+$ wget http://apache.claz.org/hadoop/common/hadoop-3.1.0/
+$ tar xzf hadoop-3.1.0.tar.gz
+$ mv hadoop-3.1.0/* to hadoop/
+$ sudo vi  ~/.bashrc 
+* export HADOOP_HOME=/usr/local/hadoop 
+* export HADOOP_MAPRED_HOME=$HADOOP_HOME 
+* export HADOOP_COMMON_HOME=$HADOOP_HOME 
+* export HADOOP_HDFS_HOME=$HADOOP_HOME 
+* export YARN_HOME=$HADOOP_HOME
+* exportHADOOP_COMMON_LIB_NATIVE_DIR=$HADOOP_HOME/lib/native 
+* export PATH=$PATH:$HADOOP_HOME/sbin:$HADOOP_HOME/bin
+$ source ~/.bashrc
+$ cd $HADOOP_HOME/etc/hadoop
+
+In core-site.xml:
+<configuration>
+   <property> 
+      <name>fs.default.name</name> 
+      <value>hdfs://localhost:9000</value> 
+   </property>
+</configuration>
+
+In hdfs-site.xml:
+<configuration>
+   <property> 
+      <name>dfs.replication</name> 
+      <value>1</value> 
+   </property> 
+   <property> 
+      <name>dfs.name.dir</name> 
+      <value>file:///home/hadoop/hadoopinfra/hdfs/namenode </value> 
+   </property> 
+   <property> 
+      <name>dfs.data.dir</name>
+      <value>file:///home/hadoop/hadoopinfra/hdfs/datanode </value > 
+   </property>
+</configuration>
+
+In yarn-site.xml:
+<configuration>
+   <property> 
+      <name>yarn.nodemanager.aux-services</name> 
+      <value>mapreduce_shuffle</value> 
+   </property> 
+</configuration>
+
+$ cp mapred-site.xml.template mapred-site.xml
+
+In mapred-site.xml:
+<configuration>
+   <property> 
+      <name>mapreduce.framework.name</name> 
+      <value>yarn</value> 
+   </property>
+</configuration>
+
+$ cd ~
+$ hdfs namenode -format
+
+$ start-dfs.sh
+$ start-yarn.sh
+$jps  (should see name node, data node, secondary name node, resource manager, node manager)
+
+3)Install hive
+$ tar zxvf apache-hive-3.1.0-bin.tar.gz
+$ su -
+passwd:
+$ mv apache-hive-3.1.0-bin /usr/local/hive
+$ sudo vi  ~/.bashrc 
+* export HIVE_HOME=/usr/local/hive
+* export PATH=$PATH:$HIVE_HOME/bin
+* export CLASSPATH=$CLASSPATH:/usr/local/Hadoop/lib/*
+* export CLASSPATH=$CLASSPATH:/usr/local/hive/lib/*
+$ source ~/.bashrc
+$ cd $HIVE_HOME/conf
+$ cp hive-env.sh.template hive-env.sh
+
+$ $HADOOP_HOME/bin/hadoop fs -mkdir /tmp 
+$ $HADOOP_HOME/bin/hadoop fs -mkdir /user/hive/warehouse
+$ $HADOOP_HOME/bin/hadoop fs -chmod g+w /tmp 
+$ $HADOOP_HOME/bin/hadoop fs -chmod g+w /user/hive/warehouse
+
+Install mysql:
+$ sudo yum install mysql-server
+$ sudo service mysqld start
+$ sudo yum install mysql-connector-java
+$ ln -s /usr/local/java/mysql-connector-java.jar /usr/local/hive/lib/mysql-connector-java.jar
+
+To set the MySQL root password:
+$ sudo /usr/bin/mysql_secure_installation
+[...]
+Enter current password for root (enter for none):
+OK, successfully used password, moving on...
+[...]
+Set root password? [Y/n] y
+New password:
+Re-enter new password:
+Remove anonymous users? [Y/n] Y
+[...]
+Disallow root login remotely? [Y/n] N
+[...]
+Remove test database and access to it [Y/n] Y
+[...]
+Reload privilege tables now? [Y/n] Y
+All done!
+
+$ sudo /sbin/chkconfig mysqld on
+$ sudo /sbin/chkconfig --list mysqld
+You will see something like
+mysqld          0:off   1:off   2:on    3:on    4:on    5:on    6:off
+
+$ mysql -u root -p
+Enter password:
+mysql> CREATE DATABASE metastore;
+mysql> USE metastore;
+mysql> SOURCE /usr/lib/hive/scripts/metastore/upgrade/mysql/hive-schema-n.n.n.mysql.sql;
+
+mysql> CREATE USER '<HIVEUSER>'@'localhost' IDENTIFIED BY '<HIVEPASSWORD>';
+mysql> GRANT ALL PRIVILEGES ON *.* TO '<HIVEUSER>'@'localhost';
+mysql> FLUSH PRIVILEGES;
+mysql> quit;
+
+$ bin/schematool -dbType mysql -initSchema 
+$ hive --service metastore 
+$hive
